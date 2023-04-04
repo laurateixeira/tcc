@@ -1,0 +1,94 @@
+---
+title: "Pareamento das amostras da PNADC trimestral"
+subtitle: "Pareamento dos dados trimestrais de 2021 e 2022 por domicílio e outras características dos indivíduos."
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+# Bibliotecas
+library(tidyverse)
+library(data.table)
+
+```
+
+```{r}
+### Carrega os dados limpos
+setwd("/home/lauratei/UNB/TCC/Code/tcc-code")
+cleaned_data_list_21 <- readRDS(file = "Dados-RDS/cleaned_pnad_data_2021.rds")
+cleaned_data_list_22 <- readRDS(file = "Dados-RDS/cleaned_pnad_data_2022.rds")
+
+
+#map(cleaned_data_list_21,~sum(is.na(.x$V2003)))
+
+```
+
+
+```{r}
+## Cria a chave para o pareamento
+
+cleaned_data_list_21 <- map(cleaned_data_list_21,~ mutate(.x, CHAVE = str_c(UPA,V1008,V1014,
+        V2007,V2008,V20081,
+        V20082,V2003,sep="/")))
+
+
+cleaned_data_list_22 <- map(cleaned_data_list_22,~ mutate(.x, CHAVE = str_c(UPA,V1008,V1014,
+        V2007,V2008,V20081,
+        V20082,V2003,sep="/")))
+
+```
+
+
+```{r}
+### Função para Pareamento da Amostra
+
+pareia_anos_consecutivos <- function(first_data,second_data){
+ 
+  # Pareamento por domicílio
+  # A chave de domicílio é composta pelas variáveis: UPA + V1008 + V1014
+  
+  # Pareamento por indivíduo
+  # Pareado por sexo (V2007), data de nascimento (V2008+V20081+V20082)
+  # e número de ordem (V2003)
+  
+  pareado_df <- left_join(first_data, second_data, by="CHAVE")
+  
+  cat("Porcentagem de indivíduos pareada:",
+      1-(sum(is.na(pareado_df$Ano.y))/nrow(pareado_df)))
+  
+  return(pareado_df)
+  
+}
+
+```
+
+```{r}
+### Aplica o Pareamento
+
+#2021
+
+pareia_anos_consecutivos(cleaned_data_list_21[[1]],cleaned_data_list_21[[2]])
+
+pareia_anos_consecutivos(cleaned_data_list_21[[2]],cleaned_data_list_21[[3]])
+
+pareia_anos_consecutivos(cleaned_data_list_21[[3]],cleaned_data_list_21[[4]])
+
+#2022
+
+pareia_anos_consecutivos(cleaned_data_list_21[[4]],cleaned_data_list_22[[1]])
+
+pareia_anos_consecutivos(cleaned_data_list_22[[1]],cleaned_data_list_22[[2]])
+
+pareia_anos_consecutivos(cleaned_data_list_22[[2]],cleaned_data_list_22[[3]])
+
+pareia_anos_consecutivos(cleaned_data_list_22[[3]],cleaned_data_list_22[[4]])
+
+
+```
+
+```{r}
+### Salva os dados em formato RDS
+
+saveRDS(cleaned_data_list_21,file = "Dados-RDS/cleaned_data_2021_pareamento.rds")
+saveRDS(cleaned_data_list_22,file = "Dados-RDS/cleaned_data_2022_pareamento.rds")
+```
+

@@ -1,0 +1,103 @@
+---
+title: "Importação Bases de Dados - PNADC 2021 e 2022"
+subtitle: "Importação e primeira limpeza dos dados." 
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+# Bibliotecas
+library(tidyverse)
+library(data.table)
+#install.packages("PNADcIBGE")
+library(PNADcIBGE)
+
+```
+
+
+```{r}
+### Leitura dos bancos - pacote PNADcIBGE
+
+setwd("/home/lauratei/UNB/TCC/Code/tcc-code")
+
+read_pnadc_data <- function(txt_data,input_txt,dict_file){
+  
+  raw_data <-read_pnadc(microdata=txt_data, input_txt=input_txt)
+  labelled_data<-pnadc_labeller(data_pnadc=raw_data,
+  dictionary.file=dict_file)
+  return(labelled_data)
+}
+
+
+```
+
+
+```{r}
+### Limpeza básica dos dados
+
+first_data_clean <- function(data,variables_to_select){
+  
+  data_cleaned <- data %>% filter(V2009>=14, V2009<=70) %>% #filtro de idade
+    filter(V2010!="Ignorado") %>% #filtro de raça/cor
+    filter(!is.na(VD3006)) %>% #filtro de escolaridade
+    filter(V2008!="99", V20081!="99", V20082!="9999") %>% #data de nascimento (elimina cerca de 10% das linhas)
+    select(all_of(variables_to_select))
+  
+  return(data_cleaned)
+
+}
+
+# Variaveis de interesse - dicionario disponivel em:
+# https://www.ibge.gov.br/estatisticas/downloads-estatisticas.html?caminho=Trabalho_e_Rendimento/Pesquisa_Nacional_por_Amostra_de_Domicilios_continua/Trimestral/Microdados/Documentacao  
+
+vars_columns_names <- c("Ano","Trimestre","UF","UPA",
+                        "V1008","V1014", "V1016",
+                        "V1022","V2001","V2003",
+                        "V2007","V2008","V20081","V20082",
+                        "V2009","V2010","V4029","V4040",
+                        "V40401","V40402","V40403",
+                        "V4048","V4071","V4076",
+                        "V40761","V40762","V40763",
+                        "VD2002","VD3005","VD3006",
+                        "VD4001","VD4002","VD4003",
+                        "VD4005","VD4009","VD4012")
+
+```
+
+
+```{r}
+### Leitura dos dados
+
+databases_paths_21 <- paste0("2021/",c("PNADC_012021","PNADC_022021",
+                                    "PNADC_032021","PNADC_042021"),".txt")
+databases_paths_22 <- paste0("2022/",c("PNADC_012022","PNADC_022022",
+                                    "PNADC_032022","PNADC_042022"),".txt")
+databases_paths <- c(databases_paths_21,databases_paths_22)
+
+data_list <- map(databases_paths,~read_pnadc_data(.x,"input_PNADC_trimestral.txt",
+                                     "dicionario_PNADC_microdados_trimestral.xls"))
+
+# Salvando os bancos em formato RDS
+saveRDS(data_list, file = "Dados-RDS/pnad_raw_data_2021_2022.rds")
+
+data_2021_list <- data_list[1:4]
+data_2022_list <- data_list[5:8]
+
+saveRDS(data_2021_list, file = "Dados-RDS/pnad_raw_data_2021.rds")
+saveRDS(data_2022_list, file = "Dados-RDS/pnad_raw_data_2022.rds")
+
+#data_list <- readRDS(file = "Dados-RDS/pnad_raw_data_2021_2022.rds")
+
+```
+
+```{r}
+## Aplicando a Limpeza nos Dados
+
+cleaned_data_list <- map(data_2021_list,~first_data_clean(.x,vars_columns_names))
+cleaned_data_list_2 <- map(data_2022_list,~first_data_clean(.x,vars_columns_names))
+
+saveRDS(cleaned_data_list,file = "Dados-RDS/cleaned_pnad_data_2021.rds")
+saveRDS(cleaned_data_list_2,file = "Dados-RDS/cleaned_pnad_data_2022.rds")
+
+#cleaned_data_list <- readRDS(file = "Dados-RDS/cleaned_pnad_data_2021.rds")
+```
+
