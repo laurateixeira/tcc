@@ -1,0 +1,364 @@
+---
+title: "Manipulação dos dados da PNADC para criar banco final para modelagem"
+subtitle: "Com base no pareamento da amostra, cria o banco no formato adequado para a análise de sobrevivência."
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+# Bibliotecas
+library(tidyverse)
+library(data.table)
+library(magrittr)
+
+```
+
+
+```{r}
+### Carrega os dados gerados no script de pareamento
+setwd("/home/lauratei/UNB/TCC/Code/tcc-code")
+data_list_21 <- readRDS(file = "Dados-RDS/cleaned_data_2021_pareamento.rds")
+data_list_22 <- readRDS(file = "Dados-RDS/cleaned_data_2022_pareamento.rds")
+
+```
+
+
+```{r}
+### Cria banco de vars demograficas (sexo,idade,etc)
+
+demog_21 <- map(data_list_21,~select(.x,V2009,V2010,VD3006,UF,V2007,VD2002,CHAVE))%>%
+  bind_rows()
+demog_22 <- map(data_list_22,~select(.x,V2009,V2010,VD3006,UF,V2007,VD2002,CHAVE))%>%
+  bind_rows()
+
+# distinct deixa a primeira aparicao de cada individuo
+demog <- rbind(demog_21,demog_22) %>% distinct(CHAVE, .keep_all = TRUE)
+
+```
+
+```{r}
+### Cria coluna de meses de desemprego nos bancos
+
+cria_var_meses_desemprego <- function(data){
+  
+  menos_um_mes <- ifelse(data$V4076=="Menos de 1 mês",1,NA)
+  meses_vetor <- data$V40761 # menos de 1 ano
+  meses_vetor_entre_ano <- ifelse(!is.na(data$V40762),12+data$V40762,NA) #entre 1 e 2 anos
+  meses_vetor_anos <- ifelse(!is.na(data$V40763),data$V40763*12,NA) # mais de 2 anos
+  
+  data$meses <- coalesce(menos_um_mes,meses_vetor,meses_vetor_entre_ano,
+                         meses_vetor_anos)
+  
+  return(data)
+  
+}
+
+## Aplica a funcao
+
+data_list_21 <- map(data_list_21, ~cria_var_meses_desemprego(.x))
+data_list_22 <- map(data_list_22, ~cria_var_meses_desemprego(.x))
+
+```
+
+```{r}
+### Cria coluna indicadora de carteira assinada
+### V4029 + V4048
+
+cria_var_carteira_assinada <- function(data){
+  
+  carteira_vector <- data$V4029=="Sim"|data$V4048=="Sim"
+  carteira_vector[is.na(carteira_vector)] <- FALSE
+  
+  data$carteira <- carteira_vector
+  
+  return(data)
+}
+
+
+## Aplica a funcao
+
+data_list_21 <- map(data_list_21, ~cria_var_carteira_assinada(.x))
+data_list_22 <- map(data_list_22, ~cria_var_carteira_assinada(.x))
+
+```
+
+```{r}
+### Cria coluna indicadora de contribuicao para previdencia
+### VD4012
+
+cria_var_contribuicao_previdencia <- function(data){
+  
+  previdencia_vector <- data$VD4012=="Contribuinte"
+  previdencia_vector[is.na(previdencia_vector)] <- FALSE
+  
+  data$previdencia <- previdencia_vector
+  
+  return(data)
+}
+
+
+## Aplica a funcao
+
+data_list_21 <- map(data_list_21, ~cria_var_contribuicao_previdencia(.x))
+data_list_22 <- map(data_list_22, ~cria_var_contribuicao_previdencia(.x))
+```
+
+
+```{r}
+### Cria coluna indicadora de inatividade
+### VD4003
+
+cria_var_inatividade <- function(data){
+  
+  inatividade_vector <- data$VD4003=="Pessoas fora da força de trabalho e na força de trabalho potencial"
+  inatividade_vector[is.na(inatividade_vector)] <- FALSE
+  
+  data$inatividade <- inatividade_vector
+  
+  return(data)
+}
+
+
+## Aplica a funcao
+
+data_list_21 <- map(data_list_21, ~cria_var_inatividade(.x))
+data_list_22 <- map(data_list_22, ~cria_var_inatividade(.x))
+
+```
+
+```{r}
+### Cria coluna indicadora de ocupacao
+### VD4002
+
+cria_var_ocupacao <- function(data){
+  
+  ocupacao_vector <- data$VD4002=="Pessoas ocupadas"
+  ocupacao_vector[is.na(ocupacao_vector)] <- FALSE
+  
+  data$ocupacao <- ocupacao_vector
+  
+  return(data)
+}
+
+
+## Aplica a funcao
+
+data_list_21 <- map(data_list_21, ~cria_var_ocupacao(.x))
+data_list_22 <- map(data_list_22, ~cria_var_ocupacao(.x))
+```
+
+
+```{r}
+### Cria coluna de meses que estava nesse trabalho
+# V4040 + V40401 + V40402 + V40403
+
+cria_var_meses_no_trabalho <- function(data){
+  
+  menos_um_mes <- ifelse(data$V4040=="Menos de 1 mês",1,NA)
+  meses_vetor <- data$V40401 # menos de 1 ano
+  meses_vetor_entre_ano <- ifelse(!is.na(data$V40402),12+data$V40402,NA) #entre 1 e 2 anos
+  meses_vetor_anos <- ifelse(!is.na(data$V40403),data$V40403*12,NA) # mais de 2 anos
+  
+  data$meses_no_trabalho <- coalesce(menos_um_mes,meses_vetor,meses_vetor_entre_ano,
+                         meses_vetor_anos)
+  
+  return(data)
+  
+}
+
+## Aplica a funcao
+
+data_list_21 <- map(data_list_21, ~cria_var_meses_no_trabalho(.x))
+data_list_22 <- map(data_list_22, ~cria_var_meses_no_trabalho(.x))
+
+```
+
+
+```{r}
+### Cria as funcoes para montar o banco final
+
+# Funcao a ser aplicada em cada linha
+situacao_individio <- function(row,next_databases){ #lembrar do ultimo df ser vazio
+  
+  chave <- row["CHAVE"]
+  meses <- as.numeric(row["meses"])
+
+  # dataframe que será preenchido no laço for
+  df_created <- data.frame("chave"=chave,"tempo"=NA, 
+                           "censura"=NA,"causa"=NA,row.names = NULL)
+  
+  for (data in next_databases){
+    
+    if (!(chave %in% data$CHAVE)){ #censura a direita
+      df_created$censura <- 0
+      df_created$tempo <- meses
+      
+      return(df_created)
+      
+    }
+    
+    # individuo encontrado na proxima pesquisa
+    # identificar situacao laboral
+    
+    next_row <- data[data$CHAVE==chave,]
+    
+    if (is.na(next_row$V4076)){ # saiu do desemprego
+      # verificar causa da saida do desemprego
+      
+      if (next_row$inatividade){ #inatividade
+        df_created$censura <- 1
+        df_created$causa <- "inatividade"
+        df_created$tempo <- meses+3 # pesquisa trimestral
+        
+        return(df_created)
+        
+      }
+      
+      if (next_row$carteira|next_row$previdencia){ #emprego formal
+        df_created$censura <- 1
+        df_created$causa <- "emprego formal"
+        meses_no_trabalho<-ifelse(next_row$meses_no_trabalho>3,3,next_row$meses_no_trabalho)
+        df_created$tempo <- meses+(3-meses_no_trabalho)
+        
+        return(df_created)
+        
+      } 
+      
+      if (next_row$ocupacao){ #emprego informal
+        
+        df_created$censura <- 1
+        df_created$causa <- "emprego informal"
+        meses_no_trabalho<-ifelse(next_row$meses_no_trabalho>3,3,next_row$meses_no_trabalho)
+        df_created$tempo <- meses+(3-meses_no_trabalho)
+        
+        return(df_created)
+        
+      }
+      
+      # saiu do desemprego mas a causa nao esta clara
+      return(NA)
+      
+    } else { #individuo continua no desemprego
+      
+      new_meses <- next_row$meses
+
+      if(new_meses<meses|new_meses>(meses+5)){cat("Chave:",chave,
+                              "Meses:",meses,
+                              "Novo meses:",new_meses)}
+      meses <-new_meses
+      
+    }
+    
+  }
+  
+}
+
+create_data_by_trimester <- function(previous_data,actual_data,next_databases){
+
+  # filtra os novos individuos no trimestre
+  if (is.data.frame(previous_data)){
+    previous_desempregados <- previous_data %>% filter(!is.na(V4076))
+    vector_new_rows <- !(actual_data$CHAVE %in% previous_desempregados$CHAVE)
+    actual_data <- actual_data[vector_new_rows,]
+  }
+  
+  # filtra os individuos que estao procurando emprego
+  desemprego <- actual_data %>% filter(!is.na(V4076))
+  #desemprego <- desemprego[1:4,]
+  
+  # para cada individuo procura a situacao nas proximas entrevistas
+  list_dfs <- apply(desemprego, 1, function(x) situacao_individio(x,next_databases))
+  
+  list_dfs_no_NA <- keep(list_dfs, is.data.frame)
+  cat("Porcentagem de indivíduos sem causa definida de saída do desemprego:",
+      (length(list_dfs)-length(list_dfs_no_NA))/length(list_dfs)*100)
+  trimester_dataframe <- bind_rows(list_dfs_no_NA)
+  
+  return(trimester_dataframe)
+
+}
+
+```
+
+
+```{r}
+### Monta o banco final
+
+next_databases <- c(data_list_21[2:4],data_list_22[1:4])
+empty_df <- data.frame(CHAVE=NA) # dataframe para encerrar o loop corretamente
+
+next_databases[[8]]<-empty_df
+
+# 2021
+
+df_2021_01 <- create_data_by_trimester(NA,data_list_21[[1]], next_databases)
+
+df_2021_02 <- create_data_by_trimester(data_list_21[[1]],data_list_21[[2]], next_databases[2:8])
+
+df_2021_03 <- create_data_by_trimester(rbind(data_list_21[[1]],data_list_21[[2]]),
+                                       data_list_21[[3]], next_databases[3:8])
+
+df_2021_04 <- create_data_by_trimester(rbind(data_list_21[[1]],data_list_21[[2]],
+                                             data_list_21[[3]]),
+                                       data_list_21[[4]], next_databases[4:8])
+
+
+# 2022
+
+df_2022_01 <- create_data_by_trimester(rbind(data_list_21[[1]],data_list_21[[2]],
+                                             data_list_21[[3]],data_list_21[[4]]),
+                                       data_list_22[[1]], next_databases[5:8])
+
+df_2022_02 <- create_data_by_trimester(rbind(data_list_21[[1]],data_list_21[[2]],
+                                             data_list_21[[3]],data_list_21[[4]],
+                                             data_list_22[[1]]),
+                                       data_list_22[[2]], next_databases[6:8])
+
+df_2022_03 <- create_data_by_trimester(rbind(data_list_21[[1]],data_list_21[[2]],
+                                             data_list_21[[3]],data_list_21[[4]],
+                                             data_list_22[[1]],data_list_22[[2]]),
+                                       data_list_22[[3]], next_databases[7:8])
+
+df_2022_04 <- create_data_by_trimester(rbind(data_list_21[[1]],data_list_21[[2]],
+                                             data_list_21[[3]],data_list_21[[4]],
+                                             data_list_22[[1]],data_list_22[[2]],
+                                             data_list_22[[3]]),
+                                       data_list_22[[4]], next_databases[8:8])
+
+
+
+final <- bind_rows(list(df_2021_01,df_2021_02,df_2021_03,df_2021_04,
+                        df_2022_01,df_2022_02,df_2022_03,df_2022_04))
+
+teste <- distinct(final,chave,.keep_all = T)
+nrow(teste)==nrow(final)
+
+### Adiciona as caracteristicas sociodemograficas dos individuos
+colnames(final)[1]<-"CHAVE"
+final <- left_join(final,demog,by="CHAVE")
+
+```
+
+
+```{r}
+### Salva os dados em formato RDS
+
+saveRDS(final, file = "Dados-RDS/dados_sobrevivencia.rds")
+
+
+# ----------------------------------------- Testes
+
+sla <- final %>% filter(censura==1)
+
+ggplot(sla,aes(x=V2007,y=tempo))+
+geom_boxplot(fill="darkblue",width=0.5)+
+stat_summary(fun.y="mean",geom="point",shape=23,size=3,
+fill="white")+
+labs(x="Sexo",y="Meses")+
+theme_bw()
+
+final %$%
+  tapply(tempo, V2007, summary)  
+
+
+```
+
