@@ -36,6 +36,8 @@ library(ggsurvfit)
 library(readxl)
 library(gmodels)
 library(epitab)
+library(cowplot)
+library(ggpubr)
 
 ```
 
@@ -180,7 +182,7 @@ axis.title.x = element_text(colour="black", size=12),
 axis.text = element_text(colour = "black", size=12),
 panel.border = element_blank(),
 axis.line = element_line(colour = "darkgray"),
-plot.title = element_text(hjust = 0.5, size=14),
+plot.title = element_text(hjust = 0.5, size=13),
 legend.text=element_text(size=10))
 
 
@@ -236,15 +238,17 @@ dados$all <- factor(".",levels=c("."))
 dados$faixa_etaria <- factor(dados$faixa_etaria,levels=c(paste(min(faixa1),"a",max(faixa1),"anos"),paste(min(faixa2),"a",max(faixa2),"anos"),paste(min(faixa3),"a",max(faixa3),"anos"),paste(min(faixa4),"a",max(faixa4),"anos"),paste(min(faixa5),"a",max(faixa5),"anos")))
 dados$regiao <- factor(dados$regiao,levels=c("Norte","Nordeste","Sudeste",
                                              "Sul","Centro-Oeste"))
+dados$Ano <- factor(dados$Ano,levels=c("2021","2022"))
 
-contingency_table(
+tabela1 <- contingency_table(
   outcomes = list("All"="all"),
   independents = list("Sexo"="V2007","Raça/Cor"="V2010",
                       "Idade"="faixa_etaria","Escolaridade"="VD3006",
-                      "Região"="regiao",
+                      "Ano"="Ano",
                       "Posição no domicílio"="VD2002",
+                      "Região"="regiao",
                       "IVS infraestrutura urbana"="IVS_faixa_infra"),
-  crosstab_funcs = list(freq()),
+  crosstab_funcs = list(freq(digits = 4)),
   #row_funcs = list("Odds"=odds_ratio("V2007")),
   data=dados) %>%
   neat_table(
@@ -253,6 +257,8 @@ contingency_table(
     caption="Frequências das covariáveis"
   ) %>%
   kableExtra::kable_classic(latex_options = "HOLD_position")
+
+tabela1
 ```
 
 
@@ -349,6 +355,51 @@ contingency_table(
   ) %>%
   kableExtra::kable_classic(latex_options = "HOLD_position")
 
+```
+
+```{r}
+# ano (inicial) vs causa de saida
+
+tbl_contingencia$Ano <-factor(tbl_contingencia$Ano, levels=c("2021","2022"))
+
+
+
+contingency_table(
+  independents = list("Saída do desemprego"="causa"),
+  outcomes = list("Ano"="Ano"),
+  crosstab_funcs = list(freq()),
+  #row_funcs = list("Odds"=odds_ratio("V2007")),
+  data=tbl_contingencia) %>%
+  neat_table(
+    format = 'latex',
+    booktabs=TRUE,
+    caption="Frequências de saída do desemprego por ano"
+  ) %>%
+  kableExtra::kable_classic(latex_options = "HOLD_position")
+```
+
+```{r}
+# todas as vars vs causa de saida
+
+# variaveis nas linhas (corrigir as porcentagens!!!)
+
+tabela2 <- contingency_table(
+  independents = list("Sexo"="V2007","Cor ou raça"="V2010",
+                      "Região"="regiao","Escolaridade"="VD3006",
+                      "Ano"="Ano","Posição no domicílio"="VD2002","Faixa etária"="faixa_etaria",
+                      "IVS infraestrutura urbana"="IVS_faixa_infra") ,
+  outcomes = list("Saída do desemprego"="causa"),
+  crosstab_funcs = list(freq()),
+  #row_funcs = list("Odds"=odds_ratio("V2007")),
+  data=tbl_contingencia) %>%
+  neat_table(
+    format = 'latex',
+    booktabs=TRUE,
+    caption="Frequências de saída do desemprego por variáveis sociodemográficas"
+  ) %>%
+  kableExtra::kable_classic(latex_options = "HOLD_position")
+
+tabela2
 ```
 
 
@@ -741,5 +792,166 @@ censurado <- dados %>% filter(is.na(causa))
 
 #summary(causa$tempo)
 #summary(censurado$tempo)
+```
+
+## Curvas de Sobrevivência estimadas - discriminado pelas 3 causas
+
+
+```{r}
+### Curva geral de sobrevivencia estimada
+
+## Emprego formal
+
+emprego_formal_df <- dados
+#censurando causas diferentes de emprego formal
+emprego_formal_df$censura[emprego_formal_df$causa!="emprego formal"] <- 0
+#porcentagem de censuras
+sum(emprego_formal_df$censura==0)/nrow(emprego_formal_df)
+
+s_formal <- survfit2(Surv(tempo, censura) ~ 1, data = emprego_formal_df) %>% 
+  ggsurvfit(color=vetor_cores[1]) +
+  add_confidence_interval() +
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  xlim(lim) +
+  ylim(c(0,1)) +
+  labs(
+    x = "Meses",
+    y = "S(t)",
+    title = "Emprego formal"
+  )+ tema
+
+
+```
+
+```{r}
+## Emprego informal
+
+emprego_informal_df <- dados
+#censurando causas diferentes de emprego informal
+emprego_informal_df$censura[emprego_informal_df$causa!="emprego informal"] <- 0
+#porcentagem de censuras
+sum(emprego_informal_df$censura==0)/nrow(emprego_informal_df)
+
+s_informal <- survfit2(Surv(tempo, censura) ~ 1, data = emprego_informal_df) %>% 
+  ggsurvfit(color=vetor_cores[1]) +
+  add_confidence_interval() +
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  xlim(lim) +
+  ylim(c(0,1)) +
+  labs(
+    x = "Meses",
+    y = "S(t)",
+    title = "Emprego informal"
+  )+ tema
+```
+
+
+```{r}
+## Inatividade
+
+inatividade_df <- dados
+#censurando causas diferentes de inatividade
+inatividade_df$censura[inatividade_df$causa!="inatividade"] <- 0
+#porcentagem de censuras
+sum(inatividade_df$censura==0)/nrow(inatividade_df)
+
+s_inativ <- survfit2(Surv(tempo, censura) ~ 1, data = inatividade_df) %>% 
+  ggsurvfit(color=vetor_cores[1]) +
+  add_confidence_interval() +
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  xlim(lim) +
+  ylim(c(0,1)) +
+  labs(
+    x = "Meses",
+    y = "S(t)",
+    title = "Inatividade"
+  )+ tema
+
+
+### Painel geral
+
+cowplot::plot_grid(s_formal,s_informal,s_inativ,nrow=2)
+ggsave("St_geral.png",width=178,height=103, units = "mm") 
+```
+
+```{r}
+### Curva sobrevivencia por sexo - 3 causas
+
+## Homens
+colors_fill <- c("Emprego formal"=vetor_cores[1],
+                 "Emprego informal"=vetor_cores[2],
+                 "Inatividade"=vetor_cores[3]
+                 )
+# emprego formal
+
+homem_formal <- emprego_formal_df %>% filter(V2007=="Homem")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = homem_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal")
+
+# emprego informal
+
+homem_informal <- emprego_informal_df %>% filter(V2007=="Homem")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = homem_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal")
+
+# inatividade
+
+homem_inativ <- inatividade_df %>% filter(V2007=="Homem")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = homem_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_homem <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Homens")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema
+
+```
+
+```{r}
+## Mulheres
+
+# emprego formal
+
+mulher_formal <- emprego_formal_df %>% filter(V2007=="Mulher")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = mulher_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal")
+
+# emprego informal
+
+mulher_informal <- emprego_informal_df %>% filter(V2007=="Mulher")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = mulher_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal")
+
+# inatividade
+
+mulher_inativ <- inatividade_df %>% filter(V2007=="Mulher")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = mulher_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_mulher <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Mulheres")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema
+
+ggpubr::ggarrange(plot_homem, plot_mulher, # list of plots
+                  common.legend = T, # COMMON LEGEND
+                  legend = "top", # legend position
+                  align = "hv", # Align them both, horizontal and vertical
+                  nrow = 1)  # number of rows
+
 ```
 
