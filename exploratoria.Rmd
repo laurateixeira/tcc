@@ -878,21 +878,21 @@ ggsave("St_geral.png",width=178,height=103, units = "mm")
 ### Curva sobrevivencia por sexo - 3 causas
 
 ## Homens
-colors_fill <- c("Emprego formal"=vetor_cores[1],
-                 "Emprego informal"=vetor_cores[2],
+colors_fill <- c("Emprego formal    "=vetor_cores[1],
+                 "Emprego informal    "=vetor_cores[2],
                  "Inatividade"=vetor_cores[3]
                  )
 # emprego formal
 
 homem_formal <- emprego_formal_df %>% filter(V2007=="Homem")
 fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = homem_formal)
-df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal")
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
 
 # emprego informal
 
 homem_informal <- emprego_informal_df %>% filter(V2007=="Homem")
 fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = homem_informal)
-df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal")
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
 
 # inatividade
 
@@ -910,7 +910,7 @@ labs(x="Meses",y="S(t)",title="Homens")+
   scale_color_manual(values=colors_fill) +
   xlim(lim) +
   ylim(c(0,1)) +
-tema
+tema + guides(colour="none") 
 
 ```
 
@@ -921,13 +921,13 @@ tema
 
 mulher_formal <- emprego_formal_df %>% filter(V2007=="Mulher")
 fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = mulher_formal)
-df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal")
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
 
 # emprego informal
 
 mulher_informal <- emprego_informal_df %>% filter(V2007=="Mulher")
 fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = mulher_informal)
-df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal")
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
 
 # inatividade
 
@@ -945,13 +945,412 @@ labs(x="Meses",y="S(t)",title="Mulheres")+
   scale_color_manual(values=colors_fill) +
   xlim(lim) +
   ylim(c(0,1)) +
-tema
+tema + theme(legend.title = element_blank()) + theme(legend.position = 'top', legend.direction = "horizontal")
 
-ggpubr::ggarrange(plot_homem, plot_mulher, # list of plots
-                  common.legend = T, # COMMON LEGEND
-                  legend = "top", # legend position
-                  align = "hv", # Align them both, horizontal and vertical
-                  nrow = 1)  # number of rows
+leg <- get_legend(plot_mulher)
 
+plot_mulher <- plot_mulher + guides(colour="none")
+
+# build grid without legends
+pgrid <- plot_grid(plot_homem, plot_mulher,nrow = 1)
+# add legend
+plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+
+ggsave("St_sexo.png",width = 168, height = 93, units = "mm") 
+
+```
+
+```{r}
+### Curva sobrevivencia por ano - 3 causas
+
+## 2021
+
+# emprego formal
+
+formal_21 <- emprego_formal_df %>% filter(Ano=="2021")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = formal_21)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+informal_21 <- emprego_informal_df %>% filter(Ano=="2021")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = informal_21)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+inativ_21 <- inatividade_df %>% filter(Ano=="2021")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = inativ_21)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_21 <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="2021")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## 2022
+
+# emprego formal
+
+formal_22 <- emprego_formal_df %>% filter(Ano=="2022")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = formal_22)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+informal_22 <- emprego_informal_df %>% filter(Ano=="2022")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = informal_22)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+inativ_22 <- inatividade_df %>% filter(Ano=="2022")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = inativ_22)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_22 <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="2022")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + theme(legend.title = element_blank()) + theme(legend.position = 'top', legend.direction = "horizontal")
+
+leg <- get_legend(plot_22)
+
+plot_22 <- plot_22 + guides(colour="none")
+
+# build grid without legends
+pgrid <- plot_grid(plot_21, plot_22,nrow = 1)
+# add legend
+plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+
+ggsave("St_ano.png",width = 168, height = 93, units = "mm") 
+
+```
+
+```{r}
+### Curva sobrevivencia por raça/cor - 3 causas
+
+## Brancos
+
+# emprego formal
+
+branco_formal <- emprego_formal_df %>% filter(cor=="Branca")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = branco_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+branco_informal <- emprego_informal_df %>% filter(cor=="Branca")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = branco_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+branco_inativ <- inatividade_df %>% filter(cor=="Branca")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = branco_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_branco <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Brancos")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+
+```
+
+```{r}
+## Nao brancos
+
+# emprego formal
+
+nbranco_formal <- emprego_formal_df %>% filter(cor=="Não branca")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = nbranco_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+nbranco_informal <- emprego_informal_df %>% filter(cor=="Não branca")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = nbranco_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+nbranco_inativ <- inatividade_df %>% filter(cor=="Não branca")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = nbranco_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_nbranco <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Não brancos")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + theme(legend.title = element_blank()) + theme(legend.position = 'top', legend.direction = "horizontal")
+
+leg <- get_legend(plot_nbranco)
+
+plot_nbranco <- plot_nbranco + guides(colour="none")
+
+# build grid without legends
+pgrid <- plot_grid(plot_branco, plot_nbranco, nrow = 1)
+# add legend
+plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+
+ggsave("St_cor.png",width = 168, height = 93, units = "mm") 
+
+```
+```{r}
+### Curva sobrevivencia por IVS infra urbana - 3 causas
+
+## IVS muito baixa/baixa
+
+# emprego formal
+
+IVSbaixo_formal <- emprego_formal_df %>% filter(IVS_faixa_infra %in% c("Muito baixa","Baixa"))
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = IVSbaixo_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+IVSbaixo_informal <- emprego_informal_df %>% filter(IVS_faixa_infra %in% c("Muito baixa","Baixa"))
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = IVSbaixo_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+IVSbaixo_inativ <- inatividade_df %>% filter(IVS_faixa_infra %in% c("Muito baixa","Baixa"))
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = IVSbaixo_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_IVSbaixo <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Infraestrutura urbana baixa")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## IVS infra urbana média/alta
+
+# emprego formal
+
+IVSalto_formal <- emprego_formal_df %>% filter(IVS_faixa_infra %in% c("Média","Alta"))
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = IVSalto_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+IVSalto_informal <- emprego_informal_df %>% filter(IVS_faixa_infra %in% c("Média","Alta"))
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = IVSalto_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+IVSalto_inativ <- inatividade_df %>% filter(IVS_faixa_infra %in% c("Média","Alta"))
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = IVSalto_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_IVSalto <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Infraestrutura urbana alta")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + theme(legend.title = element_blank()) + theme(legend.position = 'top', legend.direction = "horizontal")
+
+leg <- get_legend(plot_IVSalto)
+
+plot_IVSalto <- plot_IVSalto + guides(colour="none")
+
+# build grid without legends
+pgrid <- plot_grid(plot_IVSalto, plot_IVSbaixo, nrow = 1)
+# add legend
+plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+
+ggsave("St_IVS.png",width = 168, height = 93, units = "mm") 
+```
+
+```{r}
+### Curva sobrevivencia por posicao no domicilio - 3 causas
+
+## Responsavel pelo domicilio
+
+# emprego formal
+
+responsavel_formal <- emprego_formal_df %>% filter(posicao_domicilio == "Pessoa responsável")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = responsavel_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+responsavel_informal <- emprego_informal_df %>% filter(posicao_domicilio == "Pessoa responsável")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = responsavel_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+responsavel_inativ <- inatividade_df %>% filter(posicao_domicilio == "Pessoa responsável")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = responsavel_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_responsavel <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Pessoa responsável")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## Cônjuge ou companheiro(a)
+
+# emprego formal
+
+conjuge_formal <- emprego_formal_df %>% filter(posicao_domicilio == "Cônjuge ou companheiro(a)")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = conjuge_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+conjuge_informal <- emprego_informal_df %>% filter(posicao_domicilio == "Cônjuge ou companheiro(a)")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = conjuge_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+conjuge_inativ <- inatividade_df %>% filter(posicao_domicilio == "Cônjuge ou companheiro(a)")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = conjuge_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_conjuge <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Cônjuge ou companheiro(a)")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## Filho(a)
+
+# emprego formal
+
+filho_formal <- emprego_formal_df %>% filter(posicao_domicilio == "Filho(a)")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = filho_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+filho_informal <- emprego_informal_df %>% filter(posicao_domicilio == "Filho(a)")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = filho_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+filho_inativ <- inatividade_df %>% filter(posicao_domicilio == "Filho(a)")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = filho_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_filho <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Filho(a)")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## pos no domicilio: Outros
+
+# emprego formal
+
+outros_formal <- emprego_formal_df %>% filter(posicao_domicilio == "Outros")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = outros_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+outros_informal <- emprego_informal_df %>% filter(posicao_domicilio == "Outros")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = outros_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+outros_inativ <- inatividade_df %>% filter(posicao_domicilio == "Outros")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = outros_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_outros <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Outros")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + theme(legend.title = element_blank()) + theme(legend.position = 'top', legend.direction = "horizontal")
+
+leg <- get_legend(plot_outros)
+
+plot_outros <- plot_outros + guides(colour="none")
+
+# build grid without legends
+pgrid <- plot_grid(plot_responsavel,plot_conjuge, plot_filho, plot_outros, nrow = 2)
+# add legend
+plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+
+ggsave("St_posicao_domicilio.png",width = 178, height = 123, units = "mm") 
 ```
 
