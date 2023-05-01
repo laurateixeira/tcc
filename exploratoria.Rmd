@@ -875,6 +875,41 @@ ggsave("St_geral.png",width=178,height=103, units = "mm")
 ```
 
 ```{r}
+## Curva geral de sobrevivencia estimada (sobreposta)
+colors_fill <- c("Emprego formal    "=vetor_cores[1],
+                 "Emprego informal    "=vetor_cores[2],
+                 "Inatividade"=vetor_cores[3]
+                 )
+# emprego formal
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = emprego_formal_df)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = emprego_informal_df)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = inatividade_df)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_geral <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + theme(legend.title = element_blank()) + theme(legend.position = 'top', legend.direction = "horizontal")
+
+ggsave("St_geral2.png",width = 168, height = 103, units = "mm") 
+
+```
+
+
+```{r}
 ### Curva sobrevivencia por sexo - 3 causas
 
 ## Homens
@@ -954,7 +989,8 @@ plot_mulher <- plot_mulher + guides(colour="none")
 # build grid without legends
 pgrid <- plot_grid(plot_homem, plot_mulher,nrow = 1)
 # add legend
-plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+grid_sexo <- plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+grid_sexo
 
 ggsave("St_sexo.png",width = 168, height = 93, units = "mm") 
 
@@ -1119,7 +1155,8 @@ plot_nbranco <- plot_nbranco + guides(colour="none")
 # build grid without legends
 pgrid <- plot_grid(plot_branco, plot_nbranco, nrow = 1)
 # add legend
-plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+grid_cor <- plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+grid_cor
 
 ggsave("St_cor.png",width = 168, height = 93, units = "mm") 
 
@@ -1349,8 +1386,383 @@ plot_outros <- plot_outros + guides(colour="none")
 # build grid without legends
 pgrid <- plot_grid(plot_responsavel,plot_conjuge, plot_filho, plot_outros, nrow = 2)
 # add legend
-plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+grid_posicao <- plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.10, 1))
+grid_posicao
 
-ggsave("St_posicao_domicilio.png",width = 178, height = 123, units = "mm") 
+#ggsave("St_posicao_domicilio.png",width = 178, height = 123, units = "mm") 
+```
+```{r}
+### Curva sobrevivencia por anos de estudo - 3 causas
+
+## Sem instrução e menos de 1 ano de estudo
+
+# emprego formal
+
+sinstrucao_formal <- emprego_formal_df %>% filter(VD3006 == "Sem instrução e menos de 1 ano de estudo")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = sinstrucao_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+sinstrucao_informal <- emprego_informal_df %>% filter(VD3006 == "Sem instrução e menos de 1 ano de estudo")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = sinstrucao_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+sinstrucao_inativ <- inatividade_df %>% filter(VD3006 == "Sem instrução e menos de 1 ano de estudo")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = sinstrucao_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_sinstrucao <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="Sem instrução e menos de 1 ano")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## 1 a 4 anos de estudo
+
+# emprego formal
+
+ate4_formal <- emprego_formal_df %>% filter(VD3006 == "1 a 4 anos de estudo")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = ate4_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+ate4_informal <- emprego_informal_df %>% filter(VD3006 == "1 a 4 anos de estudo")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = ate4_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+ate4_inativ <- inatividade_df %>% filter(VD3006 == "1 a 4 anos de estudo")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = ate4_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_ate4 <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="1 a 4 anos de estudo")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## 5 a 8 anos de estudo
+
+# emprego formal
+
+ate8_formal <- emprego_formal_df %>% filter(VD3006 == "5 a 8 anos de estudo")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = ate8_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+ate8_informal <- emprego_informal_df %>% filter(VD3006 == "5 a 8 anos de estudo")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = ate8_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+ate8_inativ <- inatividade_df %>% filter(VD3006 == "5 a 8 anos de estudo")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = ate8_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_ate8 <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="5 a 8 anos de estudo")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## 9 a 11 anos de estudo
+
+# emprego formal
+
+ate11_formal <- emprego_formal_df %>% filter(VD3006 == "9 a 11 anos de estudo")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = ate11_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+ate11_informal <- emprego_informal_df %>% filter(VD3006 == "9 a 11 anos de estudo")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = ate11_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+ate11_inativ <- inatividade_df %>% filter(VD3006 == "9 a 11 anos de estudo")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = ate11_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_ate11 <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="9 a 11 anos de estudo")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+
+```{r}
+## 12 a 15 anos de estudo
+
+# emprego formal
+
+ate15_formal <- emprego_formal_df %>% filter(VD3006 == "12 a 15 anos de estudo")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = ate15_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+ate15_informal <- emprego_informal_df %>% filter(VD3006 == "12 a 15 anos de estudo")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = ate15_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+ate15_inativ <- inatividade_df %>% filter(VD3006 == "12 a 15 anos de estudo")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = ate15_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_ate15 <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="12 a 15 anos de estudo")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + guides(colour="none") 
+```
+
+```{r}
+## 16 anos ou mais de estudo
+
+# emprego formal
+
+ate16_formal <- emprego_formal_df %>% filter(VD3006 == "16 anos ou mais de estudo")
+fit1 <- survfit2(Surv(tempo, censura) ~ 1, data = ate16_formal)
+df <- data.frame(tempo=fit1$time,surv=fit1$surv,Causa="Emprego formal    ")
+
+# emprego informal
+
+ate16_informal <- emprego_informal_df %>% filter(VD3006 == "16 anos ou mais de estudo")
+fit2 <- survfit2(Surv(tempo, censura) ~ 1, data = ate16_informal)
+df2 <- data.frame(tempo=fit2$time,surv=fit2$surv,Causa="Emprego informal    ")
+
+# inatividade
+
+ate16_inativ <- inatividade_df %>% filter(VD3006 == "16 anos ou mais de estudo")
+fit3 <- survfit2(Surv(tempo, censura) ~ 1, data = ate16_inativ)
+df3 <- data.frame(tempo=fit3$time,surv=fit3$surv,Causa="Inatividade")
+
+merged_df <- rbind(df,df2,df3)
+
+plot_ate16 <- ggplot(merged_df,aes(x=tempo,y=surv,colour=Causa))+
+geom_step()+
+labs(x="Meses",y="S(t)",title="16 anos ou mais de estudo")+
+  scale_x_continuous(breaks=seq(0,500,by=50))+
+  scale_fill_manual(values=colors_fill) +
+  scale_color_manual(values=colors_fill) +
+  xlim(lim) +
+  ylim(c(0,1)) +
+tema + theme(legend.title = element_blank()) + theme(legend.position = 'top', legend.direction = "horizontal")
+
+leg <- get_legend(plot_ate16)
+
+plot_ate16 <- plot_ate16 + guides(colour="none")
+
+# build grid without legends
+pgrid <- plot_grid(plot_sinstrucao,plot_ate4,plot_ate8,plot_ate11,plot_ate15,plot_ate16, nrow = 3)
+# add legend
+plot_grid(leg, pgrid, nrow = 2, rel_heights = c(0.075, 1))
+
+ggsave("St_escolaridade.png",width = 210, height = 287, units = "mm") 
+```
+
+```{r}
+### Juntando os graficos mais interessantes em 1 painel
+
+# Sexo + Cor + Posicao no domicilio
+
+# build grid without legends
+pgrid <- plot_grid(plot_responsavel,plot_conjuge, nrow = 1)
+# add legend
+grid_pos1 <- plot_grid(leg, pgrid, nrow = 2, rel_heights = c(.15, 1))
+
+pgrid2 <- plot_grid(plot_filho,plot_outros,nrow=1)
+
+plot_grid(grid_sexo, grid_cor, grid_pos1 ,pgrid2, nrow = 4,
+          rel_heights = c(1, 1, 1, 1))
+
+ggsave("St_painel1.png",width = 210, height = 287, units = "mm") 
+
+```
+
+```{r}
+### Teste qui-quadrado para as tabelas 2x2
+
+# Saida do desemprego por sexo
+
+freqs <- dados %$% tapply(causa,V2007,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$Homem, freqs$Mulher))
+dimnames(tbl_quiquadrado) <- list(sexo = names(freqs),
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_sexo <- chisq.test(tbl_quiquadrado))
+
+# Saida do desemprego por raça/cor
+
+freqs <- dados %$% tapply(causa,V2010,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$Branca, freqs$Preta,
+                                  freqs$Amarela, freqs$Parda,freqs$Indígena))
+dimnames(tbl_quiquadrado) <- list(cor = names(freqs)[-6],
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_cor <- chisq.test(tbl_quiquadrado))
+
+# Saida do desemprego por regiao
+
+freqs <- dados %$% tapply(causa,regiao,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$Norte, freqs$Nordeste,
+                                  freqs$Sudeste, freqs$Sul,
+                                  freqs$`Centro-Oeste`))
+dimnames(tbl_quiquadrado) <- list(regiao = names(freqs),
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_regiao <- chisq.test(tbl_quiquadrado))
+
+# Saida do desemprego por posicao no domicilio
+
+freqs <- dados %$% tapply(causa,posicao_domicilio,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$`Cônjuge ou companheiro(a)`, freqs$`Filho(a)`,freqs$Outros, freqs$`Pessoa responsável`))
+
+dimnames(tbl_quiquadrado) <- list(posicao_domicilio = names(freqs),
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_posicao <- chisq.test(tbl_quiquadrado))
+
+# Saida do desemprego por escolaridade
+
+freqs <- dados %$% tapply(causa,VD3006,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$`Sem instrução e menos de 1 ano de estudo`, freqs$`1 a 4 anos de estudo`,freqs$`5 a 8 anos de estudo`, freqs$`9 a 11 anos de estudo`,freqs$`12 a 15 anos de estudo`,freqs$`16 anos ou mais de estudo`))
+
+dimnames(tbl_quiquadrado) <- list(escolaridade = names(freqs),
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_escolaridade <- chisq.test(tbl_quiquadrado))
+
+# Saida do desemprego por ano
+
+freqs <- dados %$% tapply(causa,Ano,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$`2021`,freqs$`2022`))
+
+dimnames(tbl_quiquadrado) <- list(ano = names(freqs),
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_ano <- chisq.test(tbl_quiquadrado))
+
+# Saida do desemprego por faixa etaria
+
+freqs <- dados %$% tapply(causa,faixa_etaria,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$`14 a 20 anos`,freqs$`21 a 30 anos`,
+                                  freqs$`31 a 40 anos`,freqs$`41 a 50 anos`,
+                                  freqs$`51 a 70 anos`))
+
+dimnames(tbl_quiquadrado) <- list(idade = names(freqs),
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_idade <- chisq.test(tbl_quiquadrado))
+
+# Saida do desemprego por IVS infra urbana
+
+freqs <- dados %$% tapply(causa,IVS_faixa_infra,table)
+
+tbl_quiquadrado <- as.table(rbind(freqs$`Muito baixa`,freqs$Baixa,
+                                  freqs$Média,freqs$Alta))
+
+dimnames(tbl_quiquadrado) <- list(IVS = names(freqs),
+                    causa = dimnames(tbl_quiquadrado)[[2]])
+
+(Xsq_IVS <- chisq.test(tbl_quiquadrado))
+
+
+```
+
+```{r}
+### Montando tabela com os resultados dos testes
+### Qui-Quadrado
+
+
+x_squared <- c(Xsq_sexo$statistic,Xsq_cor$statistic,
+               Xsq_regiao$statistic,
+               Xsq_posicao$statistic,Xsq_escolaridade$statistic,
+               Xsq_ano$statistic,Xsq_idade$statistic,
+               Xsq_IVS$statistic)
+
+
+graus_liberdade <- c(Xsq_sexo$parameter,Xsq_cor$parameter,
+               Xsq_regiao$parameter,
+               Xsq_posicao$parameter,Xsq_escolaridade$parameter,
+               Xsq_ano$parameter,Xsq_idade$parameter,
+               Xsq_IVS$parameter)
+
+p_valores <- c(Xsq_sexo$p.value,Xsq_cor$p.value,
+               Xsq_regiao$p.value,
+               Xsq_posicao$p.value,Xsq_escolaridade$p.value,
+               Xsq_ano$p.value,Xsq_idade$p.value,
+               Xsq_IVS$p.value)
+
+
+vars <- c("Sexo","Raça/Cor","Região","Posição no domicílio",
+          "Escolaridade","Ano","Faixa etária","IVS infraestrutura urbana")
+
+df_qui_quadrado <- data.frame("Covariável"=vars,
+                              "Estatística do teste"=round(x_squared,3),
+                              "Graus de liberdade"=graus_liberdade,
+                              "P-valor"=p_valores,
+                              "<0,001"=p_valores<0.001,
+                              check.names = F)
+
+tbl_x2 <- df_qui_quadrado %>%
+  kableExtra::kbl(.,digits=3,align=c('l','c','c','c','c'),booktabs = T,caption = 'Teste Qui-Quadrado de independência entre as covariáveis e a causa de saída do desemprego',format="latex") %>% 
+  kableExtra::kable_classic(full_width=FALSE,latex_options = "HOLD_position")
+
 ```
 
