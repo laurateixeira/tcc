@@ -1,0 +1,807 @@
+---
+title: "Modelo de regressão (sem RC)"
+author: "Laura Cristina Melo Teixeira"
+date: "5/3/2023"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Bibliotecas
+library(tidyverse)
+library(data.table)
+library(magrittr)
+library(ggsurvfit)
+library(gmodels)
+library(epitab)
+library(cowplot)
+library(survival)
+library(flexsurv)
+library(pammtools)
+library(lmtest)
+library(kableExtra)
+```
+
+```{r}
+### Carrega os dados gerados no script de exploratoria
+setwd("/home/laura/UNB/TCC/Code/tcc-code")
+dados <- readRDS(file = "Dados-RDS/dados_exploratoria.rds")
+
+```
+
+```{r}
+### Tema dos graficos
+tema <- theme_bw() +
+theme(axis.title.y=element_text(colour="black", size=11),
+axis.title.x = element_text(colour="black", size=11),
+axis.text = element_text(colour = "black", size=9.5),
+panel.border = element_blank(),
+axis.line = element_line(colour = "darkgray"),
+plot.title = element_text(hjust = 0.5, size=12),
+legend.text=element_text(size=11))
+
+
+vetor_cores <- c("#0f4c5c","#e36414","#ffb726","#9a031e","#5f0f40","#0f5f4e")
+```
+
+
+```{r}
+## Montando a curva H(t) para decidir o modelo parametrico
+
+tempo <- dados$tempo
+censura <-dados$censura
+
+a<-survfit(Surv(tempo,censura)~1)
+tt<-a$time
+s<-a$surv
+H<- -log(s)
+
+tt<-c(0,tt)
+H<-c(0,H)
+
+ht_data <- data.frame("tt"=tt,"H"=H)
+
+## Plota a H(t)
+
+ggplot(ht_data,aes(x=tt,y=H,group=1))+
+geom_line(linewidth=.8,colour=vetor_cores[1])+
+  #scale_x_continuous(limits=c(16, 1223))+
+labs(x="Tempo em meses",y="H(t)")+
+tema
+
+ggsave("Ht.png",width = 186, height = 93, units = "mm") 
+
+```
+
+De modo geral, a curva H(t) parece seguir um formato côncavo, o que sugere uma função de risco monotonicamente decrescente. Assim, as distribuições candidatas são:
+Candidatos: Weibull, Log-Normal e Log-Logística.
+
+
+```{r}
+### Modelos sem covariaveis
+dados$cor <- factor(dados$cor, levels=c("Branca","Não branca"))
+dados$posicao_domicilio <- factor(dados$posicao_domicilio,levels=c("Pessoa responsável","Cônjuge ou companheiro(a)","Filho(a)","Outros"))
+
+## Weibull
+
+model_weibull<-survreg(Surv(tempo,censura)~1,dist="weibull",data=dados)
+summary(model_weibull) 
+
+## Log-Normal
+
+model_lognormal<-survreg(Surv(tempo,censura)~1,dist="lognormal",data=dados)
+summary(model_lognormal) 
+
+## Log-Logística
+
+model_loglogist<-survreg(Surv(tempo,censura)~1,dist="loglogistic",data=dados)
+summary(model_loglogist) 
+
+```
+
+```{r}
+## Plotando as curvas de sobrevivencia
+
+# Weibull
+s <- with(dados,Surv(tempo,censura))
+
+sWei  <- flexsurvreg(s ~ 1,dist='weibull',data=dados)
+plot(sWei, ylab = "S(t)", xlab = "Tempo em meses")+title("Modelo Weibull vs estimação não paramétrica")
+
+## Grafico no ggplot
+
+m <- max(dados$tempo)
+t <- (1:m)
+pr <- predict(sWei,newdata = data.frame(tempo=dados$tempo[1]), type="survival", times=t)
+pr <- pr[[1]][[1]]
+names(pr)[1] <- "tempo"
+
+fitKM <- survfit2(Surv(tempo, censura) ~ 1, data = dados)
+dfKM <- data.frame(tempo=fitKM$time,surv=fitKM$surv,lower=fitKM$lower,
+                   upper=fitKM$upper)
+
+dfKM <- left_join(dfKM,pr,by="tempo")
+
+# Log-Normal
+slognormal  <- flexsurvreg(s ~ 1,dist='lognormal',data=dados)
+plot(slognormal, ylab = "S(t)", xlab = "Tempo em meses")+title("Modelo Log-Normal vs estimação não paramétrica")
+
+
+pr2 <- predict(slognormal,newdata = data.frame(tempo=dados$tempo[1]), type="survival", times=t)
+pr2 <- pr2[[1]][[1]]
+names(pr2) <- c("tempo","surv_lognormal")
+
+dfKM <- left_join(dfKM,pr2,by="tempo")
+
+# Log-Logistica
+sloglogist  <- flexsurvreg(s ~ 1,dist='llogis',data=dados)
+plot(sloglogist, ylab = "S(t)", xlab = "Tempo em meses")+title("Modelo Log-Logística vs estimação não paramétrica")
+
+
+pr3 <- predict(sloglogist,newdata = data.frame(tempo=dados$tempo[1]), type="survival", times=t)
+pr3 <- pr3[[1]][[1]]
+names(pr3) <- c("tempo","surv_loglogist")
+
+dfKM <- left_join(dfKM,pr3,by="tempo")
+
+ggplot(dfKM,aes(x=tempo,group=1))+
+geom_line(aes(y=.pred_survival,colour="Weibull"),size=.6)+
+  geom_line(aes(y=surv_lognormal,colour="Log-Normal"),size=.6) +
+  geom_line(aes(y=surv_loglogist,colour="Log-Logística"),size=.6) +
+  #geom_stepribbon(aes(ymin = lower, ymax = upper), fill = "grey70",alpha = 0.5) +
+  geom_step(aes(y=surv,colour="Kaplan-Meier"),size=.7) +
+  scale_color_manual(name="",values = c("Weibull" = vetor_cores[1],
+                                "Log-Normal" = vetor_cores[2],
+                                "Log-Logística" = vetor_cores[3],
+                                "Kaplan-Meier" = "gray20")) +
+  #scale_x_continuous(limits=c(16, 1223))+
+labs(x="Tempo em meses",y="S(t)")+
+tema
+
+ggsave("modelos_sem_cov.png",width = 206, height = 103, units = "mm") 
+
+
+```
+
+```{r}
+### Residuos de Cox-Snell SEM covariaveis - Weibull
+cs_weibull <- coxsnell_flexsurvreg(sWei)
+surv <- survival::survfit(Surv(cs_weibull$est, dados$censura) ~ 1)
+{plot(surv, fun="cumhaz", main = "Resíduos de Cox-Snell - Modelo Weibull")
+abline(0, 1, col="red")}
+
+
+## Versao no ggplot
+cox_df <- data.frame(tempo=surv$time,cumhaz=surv$cumhaz)
+
+# calculando o IC para H(t)
+z <- qnorm(0.975)
+upper <- surv$cumhaz+(z*surv$std.chaz)
+lower <- surv$cumhaz-(z*surv$std.chaz)
+
+cox_df$upper <- upper
+cox_df$lower <- lower
+
+cox_snell_weibull <- ggplot(cox_df,aes(x=tempo,y=cumhaz)) +
+  geom_stepribbon(aes(ymin = lower, ymax = upper), fill = "grey70",alpha = 0.5) +
+    geom_step(aes(y = cumhaz)) +
+labs(x="",y="",title="Modelo Weibull")+
+  geom_abline(intercept = 0, slope = 1,col='red') +
+tema 
+```
+
+```{r}
+### Residuos de Cox-Snell - Log-Normal SEM covariaveis
+slognormal  <- flexsurvreg(s ~ 1,dist='lognormal',data=dados)
+cs_lognormal <- coxsnell_flexsurvreg(slognormal)
+surv <- survival::survfit(Surv(cs_lognormal$est, dados$censura) ~ 1)
+plot(surv, fun="cumhaz", main = "Resíduos de Cox-Snell - Modelo Log-Normal")
+abline(0, 1, col="red")
+
+
+## Versao no ggplot
+cox_df <- data.frame(tempo=surv$time,cumhaz=surv$cumhaz)
+
+# calculando o IC para H(t)
+z <- qnorm(0.975)
+upper <- surv$cumhaz+(z*surv$std.chaz)
+lower <- surv$cumhaz-(z*surv$std.chaz)
+
+cox_df$upper <- upper
+cox_df$lower <- lower
+
+cox_snell_lognormal <- ggplot(cox_df,aes(x=tempo,y=cumhaz)) +
+  geom_stepribbon(aes(ymin = lower, ymax = upper), fill = "grey70",alpha = 0.5) +
+    geom_step(aes(y = cumhaz)) +
+labs(x="",y="",title="Modelo Log-Normal")+
+  geom_abline(intercept = 0, slope = 1,col='red') +
+tema 
+```
+
+```{r}
+### Residuos de Cox-Snell - Log-Logistica SEM covariaveis
+sloglog  <- flexsurvreg(s ~ 1, dist='llogis',data=dados)
+cs_loglog <- coxsnell_flexsurvreg(sloglog)
+surv <- survival::survfit(Surv(cs_loglog$est, dados$censura) ~ 1)
+plot(surv, fun="cumhaz", main = "Resíduos de Cox-Snell - Modelo Log-Logística")
+abline(0, 1, col="red")
+
+
+## Versao no ggplot
+cox_df <- data.frame(tempo=surv$time,cumhaz=surv$cumhaz)
+
+# calculando o IC para H(t)
+z <- qnorm(0.975)
+upper <- surv$cumhaz+(z*surv$std.chaz)
+lower <- surv$cumhaz-(z*surv$std.chaz)
+
+cox_df$upper <- upper
+cox_df$lower <- lower
+
+cox_snell_loglogist <- ggplot(cox_df,aes(x=tempo,y=cumhaz)) +
+  geom_stepribbon(aes(ymin = lower, ymax = upper), fill = "grey70",alpha = 0.5) +
+    geom_step(aes(y = cumhaz)) +
+labs(x="",y="",title="Modelo Log-Logística")+
+  geom_abline(intercept = 0, slope = 1,col='red') +
+tema 
+```
+
+
+```{r}
+### Painel com os 3 graficos de residuos cox-snell
+
+cox_grid <- cowplot::plot_grid(cox_snell_weibull,cox_snell_lognormal,cox_snell_loglogist)
+
+title <- ggdraw() + draw_label("Resíduos de Cox-Snell", fontface="bold",
+                               color = "gray10")
+
+plot_grid(title, cox_grid, ncol=1, rel_heights=c(0.1, 1))
+ggsave("res_cox_snell.png",width = 186, height = 133, units = "mm") 
+
+```
+
+
+
+### Modelos com covariáveis
+
+# V1 = sexo, V2 = cor, V3 = regiao, V4 = posicao domicilio
+# V5 = escolaridade, V6 = ano, V7 = faixa etaria, V8 = IVS
+
+Selecionando sexo, cor, regiao, posicao no domicilio, escolaridade, faixa etaria a titulo de serem variáveis presentes em outros estudos da área e por aparentarem ter uma relação com a explicação do tempo de desemprego, segundo o que foi visto na análise exploratória.
+
+A dúvida que fica é se IVS poderia também entrar no modelo. Pela natureza da variável, é natural pensar que junto da variável regiao, o IVS implicaria em multicolinearidade. Para testar essa hipótese
+
+```{r}
+## Calculando o VIF
+library(car)
+mod_vif <- lm(tempo~V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,
+              data=dados)
+
+summary(mod_vif)
+(vif1<-vif(mod_vif))
+# mean(vif1)
+
+mod_sem_ivs <- lm(tempo~V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria,
+              data=dados)
+
+(vif2<-vif(mod_sem_ivs))
+mean(vif2)
+
+```
+
+```{r}
+### Calculando os modelos com e sem IVS e vendo o impacto na variância dos estimadores
+
+mod_sem_ivs2 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria,
+                        dist="lognormal",data=dados)
+
+
+summary(mod_sem_ivs2)
+coef_estimados <- mod_sem_ivs2$coefficients[4:7]
+erro_padrao_regiao <- c(0.02202,0.02319,0.02904,0.02922)
+mean(erro_padrao_regiao)
+
+mod_com_ivs <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,
+                       dist="lognormal",data=dados)
+
+
+summary(mod_com_ivs)
+coef_estimados2 <- mod_com_ivs$coefficients[4:7]
+erro_padrao_regiao2 <- c(0.02369,0.02434,0.03038,0.03067)
+mean(erro_padrao_regiao2)
+
+
+tbl <- data.frame("Modelo"=c("Sem IVS","Com IVS"),
+                  "Nordeste"=c(coef_estimados[1],coef_estimados2[1]),
+                  "Sudeste"=c(coef_estimados[2],coef_estimados2[2]),
+                  "Sul"=c(coef_estimados[3],coef_estimados2[3]),
+                  "Centro-Oeste"=c(coef_estimados[4],coef_estimados2[4]),check.names = F)
+
+
+tbl %>%
+  kableExtra::kbl(.,digits=4,align=c('l','c','c','c','c'),booktabs = T,
+                  caption = 'Coeficientes estimados nos modelos com e sem IVS') %>% 
+  kableExtra::kable_classic(full_width=FALSE,latex_options = "HOLD_position")
+
+```
+
+```{r}
+### Modelo com todas as variáveis MENOS Ano e IVS
+mod_lognormal_final <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria,
+                        dist="lognormal",data=dados)
+
+confint(mod_lognormal_final)
+summary(mod_lognormal_final)
+
+# Montando a tabela com as estimativas
+
+covariaveis <- c(rep("Sexo",2),rep("Raça/Cor",2),rep("Idade",5),
+                 rep("Escolaridade",6),
+                 rep("Posição no domicílio",4),
+                 rep("Região",5))
+
+categorias <- c("Homem","Mulher","Branca","Não branca","14 a 20 anos",
+                "21 a 30 anos","31 a 40 anos","41 a 50 anos",
+                "51 a 70 anos","Sem instrução e menos de 1 ano de estudo",
+                "1 a 4 anos de estudo","5 a 8 anos de estudo",
+                "9 a 11 anos de estudo","12 a 15 anos de estudo",
+                "16 anos ou mais de estudo","Pessoa responsável",
+                "Cônjuge ou companheiro(a)","Filho(a)","Outros",
+                "Norte","Nordeste","Sudeste","Sul","Centro-Oeste")
+
+est <- round(mod_lognormal_final$coefficients,3)
+estimativas <- c("-",est[2],"-",est[3],"-",est[16:19],
+                 "-",est[11:15],"-",est[8:10],"-",
+                 est[4:7])
+
+std_error <- round(summary(mod_lognormal_final)$table[,2],3)
+erros_padrao <- c("-",std_error[2],"-",std_error[3],"-",std_error[16:19],
+                 "-",std_error[11:15],"-",std_error[8:10],"-",
+                 std_error[4:7])
+
+## Intervalo de Confiança Plano para os coeficientes (95%)
+IC_coef <- confint(mod_lognormal_final)
+ICs_formatados <- str_c("(",round(IC_coef[,1],3)," ; ",
+                        round(IC_coef[,2],3),")")
+
+ICs_tbl <- c("-",ICs_formatados[2],"-",ICs_formatados[3],"-",ICs_formatados[16:19],
+                 "-",ICs_formatados[11:15],"-",ICs_formatados[8:10],"-",
+                 ICs_formatados[4:7])
+
+p_valores <- summary(mod_lognormal_final)$table[,4]
+p_valores <- c("-",p_valores[2],"-",p_valores[3],"-",p_valores[16:19],
+                 "-",p_valores[11:15],"-",p_valores[8:10],"-",
+                 p_valores[4:7])
+
+tbl_modelo <- data.frame("Covariável" = covariaveis,
+                         "Categoria" = categorias,
+                         "Estimativa" = estimativas,
+                         "Erro padrão" = erros_padrao,
+                         "IC - 95%" = ICs_tbl,
+                         "P-valor" = p_valores,
+                         check.names = F)
+
+tbl_modelo_latex <- tbl_modelo %>%
+  kableExtra::kbl(.,digits=10,align=c('l','l','r','r','r','r'),booktabs = T,
+                  caption = 'Estimativas dos coeficientes do modelo de regressão log-normal',format="latex") %>% 
+  kableExtra::kable_classic(full_width=FALSE,latex_options = "HOLD_position")
+
+View(tbl_modelo_latex)
+```
+
+
+```{r}
+### Selecao de variaveis (usando a log-normal)
+
+
+fit1 <- survreg(Surv(tempo,censura)~V2007,dist="lognormal",data=dados)
+summary(fit1) 
+
+fit2 <- survreg(Surv(tempo,censura)~V2007+cor,dist="lognormal",data=dados)
+summary(fit2) 
+
+
+# TRV 1
+summary(fit1)
+
+# TRV 2
+lrtest(fit2, fit1)
+
+fit3 <- survreg(Surv(tempo,censura)~V2007+cor+regiao,dist="lognormal",data=dados)
+summary(fit3) 
+
+# TRV 3
+lrtest(fit3, fit2)
+
+
+fit4 <- survreg(Surv(tempo,censura)~V2007+cor+regiao+posicao_domicilio,dist="lognormal",data=dados)
+summary(fit4) 
+
+# TRV 4
+lrtest(fit4, fit3)
+
+fit5 <- survreg(Surv(tempo,censura)~V2007+cor+regiao+posicao_domicilio+VD3006,dist="lognormal",data=dados)
+summary(fit5) 
+
+# TRV 5
+lrtest(fit5, fit4)
+
+
+fit6 <- survreg(Surv(tempo,censura)~V2007+cor+regiao+posicao_domicilio+VD3006+Ano,dist="lognormal",data=dados)
+summary(fit6) 
+
+# TRV 6
+lrtest(fit6, fit5)
+
+
+fit7 <- survreg(Surv(tempo,censura)~V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria,dist="lognormal",data=dados)
+summary(fit7) 
+
+# TRV 6
+lrtest(fit7, fit5)
+
+
+fit8 <- survreg(Surv(tempo,censura)~V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+summary(fit8) 
+
+
+# TRV 7
+lrtest(fit8, fit7)
+
+
+## ficam todas as variaveis MENOS ano
+
+```
+
+
+```{r}
+### Selecao de variaveis (usando a log-normal)
+
+# V1 = sexo, V2 = cor, V3 = regiao, V4 = posicao domicilio
+# V5 = escolaridade, V6 = ano, V7 = faixa etaria, V8 = IVS
+
+## PASSO 1
+
+nulo <- survreg(Surv(tempo,censura)~ 1,dist="lognormal",data=dados)
+summary(nulo) 
+
+
+v1 <- survreg(Surv(tempo,censura)~ V2007,dist="lognormal",data=dados)
+v2 <- survreg(Surv(tempo,censura)~ cor,dist="lognormal",data=dados)
+v3 <- survreg(Surv(tempo,censura)~ regiao,dist="lognormal",data=dados)
+v4 <- survreg(Surv(tempo,censura)~ posicao_domicilio,dist="lognormal",data=dados)
+v5 <- survreg(Surv(tempo,censura)~ VD3006,dist="lognormal",data=dados)
+v6 <- survreg(Surv(tempo,censura)~ Ano,dist="lognormal",data=dados)
+v7 <- survreg(Surv(tempo,censura)~ faixa_etaria,dist="lognormal",data=dados)
+v8 <- survreg(Surv(tempo,censura)~ IVS_faixa_infra,dist="lognormal",data=dados)
+
+
+lrtest(nulo,v1) # < 2.2e-16 = < 0.00000000000000022
+lrtest(nulo,v2) # 0.0004264
+lrtest(nulo,v3) # < 2.2e-16
+lrtest(nulo,v4) # < 2.2e-16
+lrtest(nulo,v5) # < 2.2e-16
+lrtest(nulo,v6) # 0.2074
+lrtest(nulo,v7) # < 2.2e-16
+lrtest(nulo,v8) # < 2.2e-16
+
+
+## PASSO 2 (Ano foi eliminado no passo anterior)
+
+
+passo2 <- survreg(Surv(tempo,censura)~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+
+semV1 <- survreg(Surv(tempo,censura)~ cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+semV2 <- survreg(Surv(tempo,censura)~ V2007+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+semV3 <- survreg(Surv(tempo,censura)~ V2007+cor+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+semV4 <- survreg(Surv(tempo,censura)~ V2007+cor+regiao+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+semV5 <- survreg(Surv(tempo,censura)~ V2007+cor+regiao+posicao_domicilio+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+semV7 <- survreg(Surv(tempo,censura)~ V2007+cor+regiao+posicao_domicilio+VD3006+IVS_faixa_infra,dist="lognormal",data=dados)
+semV8 <- survreg(Surv(tempo,censura)~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria,dist="lognormal",data=dados)
+
+
+lrtest(passo2,semV1) # < 2.2e-16
+lrtest(passo2,semV2) # 0.001739
+lrtest(passo2,semV3) # < 2.2e-16
+lrtest(passo2,semV4) # < 2.2e-16
+lrtest(passo2,semV5) # < 2.2e-16
+lrtest(passo2,semV7) # < 2.2e-16
+lrtest(passo2,semV8) # < 2.2e-16
+
+## PASSO 3 - pulado pois nada foi excluido no passo 2
+
+## PASSO 4
+
+passo4 <- passo2
+
+voltaV6 <- survreg(Surv(tempo,censura)~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+
+lrtest(passo4,voltaV6) #0.0001525
+
+## PASSO 5 (Ano voltou)
+
+passo5 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+
+semV12 <- survreg(Surv(tempo,censura) ~ cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+semV22 <- survreg(Surv(tempo,censura) ~ V2007+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+semV32 <- survreg(Surv(tempo,censura) ~ V2007+cor+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+semV42 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+VD3006+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+semV52 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+semV62 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+semV72 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+semV82 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+Ano,dist="lognormal",data=dados)
+
+lrtest(passo5,semV12) # < 2.2e-16
+lrtest(passo5,semV22) # 0.001758
+lrtest(passo5,semV32) # < 2.2e-16
+lrtest(passo5,semV42) # < 2.2e-16 
+lrtest(passo5,semV52) # < 2.2e-16
+lrtest(passo5,semV62) # 0.0001525
+lrtest(passo5,semV72) # < 2.2e-16
+lrtest(passo5,semV82) # < 2.2e-16
+
+
+## PASSO 6 -Interacoes - PULADO
+
+## PASSO FINAL
+
+modelfinal1 <- survreg(Surv(tempo,censura) ~ V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+Ano,dist="lognormal",data=dados)
+summary(modelfinal1)
+
+modelfinal2 <- survreg(Surv(tempo,censura) ~ V2007+cor+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra+Ano,dist="lognormal",data=dados)
+summary(modelfinal2)
+
+
+
+```
+
+```{r}
+### Selecao de variaveis (usando a log-normal) COM AMOSTRA
+
+# V1 = sexo, V2 = cor, V3 = regiao, V4 = posicao domicilio
+# V5 = escolaridade, V6 = ano, V7 = faixa etaria, V8 = IVS
+
+# tirando uma amostra
+
+set.seed(1234)
+rows <- sample(1:nrow(dados),1000,replace = F)
+amostra <- dados[rows,]
+
+## PASSO 1
+
+nulo <- survreg(Surv(tempo,censura)~ 1,dist="lognormal",data=amostra)
+summary(nulo) 
+
+
+v1 <- survreg(Surv(tempo,censura)~ V2007,dist="lognormal",data=amostra)
+v2 <- survreg(Surv(tempo,censura)~ cor,dist="lognormal",data=amostra)
+v3 <- survreg(Surv(tempo,censura)~ regiao,dist="lognormal",data=amostra)
+v4 <- survreg(Surv(tempo,censura)~ posicao_domicilio,dist="lognormal",data=amostra)
+v5 <- survreg(Surv(tempo,censura)~ VD3006,dist="lognormal",data=amostra)
+v6 <- survreg(Surv(tempo,censura)~ Ano,dist="lognormal",data=amostra)
+v7 <- survreg(Surv(tempo,censura)~ faixa_etaria,dist="lognormal",data=amostra)
+v8 <- survreg(Surv(tempo,censura)~ IVS_faixa_infra,dist="lognormal",data=amostra)
+
+
+lrtest(nulo,v1) # 6.413e-11
+lrtest(nulo,v2) # 0.4727
+lrtest(nulo,v3) # 0.6964
+lrtest(nulo,v4) # 0.1345
+lrtest(nulo,v5) # 0.05609
+lrtest(nulo,v6) # 0.4769
+lrtest(nulo,v7) # 0.8446
+lrtest(nulo,v8) # 0.00039
+
+
+## PASSO 2 (Cor/Ano/Regiao/posicao_domicilio/faixa_etaria foi eliminado no passo anterior)
+
+
+passo2 <- survreg(Surv(tempo,censura)~ V2007+VD3006+IVS_faixa_infra,dist="lognormal",data=amostra)
+
+semV1 <- survreg(Surv(tempo,censura)~ VD3006+IVS_faixa_infra,dist="lognormal",data=amostra)
+semV5 <- survreg(Surv(tempo,censura)~ V2007+IVS_faixa_infra,dist="lognormal",data=amostra)
+semV8 <- survreg(Surv(tempo,censura)~ V2007+VD3006,dist="lognormal",data=amostra)
+
+
+
+lrtest(passo2,semV1) # 6.81e-10
+lrtest(passo2,semV5) # 0.3871
+lrtest(passo2,semV8) # 0.002099
+
+
+## PASSO 3 - Escolaridade foi excluido no passo anterior
+
+passo3 <-  survreg(Surv(tempo,censura)~ V2007+IVS_faixa_infra,dist="lognormal",data=amostra)
+
+comV5 <-  survreg(Surv(tempo,censura)~ V2007+VD3006+IVS_faixa_infra,dist="lognormal",data=amostra)
+
+lrtest(passo3,comV5) # 0.3871
+
+## PASSO 4
+
+passo4 <- passo3
+
+voltaV2 <- survreg(Surv(tempo,censura)~ V2007+IVS_faixa_infra+cor,dist="lognormal",data=amostra)
+voltaV3 <- survreg(Surv(tempo,censura)~ V2007+IVS_faixa_infra+regiao,dist="lognormal",data=amostra)
+voltaV4 <- survreg(Surv(tempo,censura)~ V2007+IVS_faixa_infra+posicao_domicilio,dist="lognormal",data=amostra)
+voltaV6 <- survreg(Surv(tempo,censura)~ V2007+IVS_faixa_infra+Ano,dist="lognormal",data=amostra)
+voltaV7 <- survreg(Surv(tempo,censura)~ V2007+IVS_faixa_infra+faixa_etaria,dist="lognormal",data=amostra)
+
+lrtest(passo4,voltaV2) #0.4571
+lrtest(passo4,voltaV3) #0.01888
+lrtest(passo4,voltaV4) #0.01779
+lrtest(passo4,voltaV6) #0.5327
+lrtest(passo4,voltaV7) #0.4533
+
+
+## PASSO 5 (Regiao e posicao_domicilio voltou)
+
+passo5 <- survreg(Surv(tempo,censura) ~ V2007+IVS_faixa_infra+regiao+posicao_domicilio,dist="lognormal",data=amostra)
+
+semV12 <- survreg(Surv(tempo,censura) ~ IVS_faixa_infra+regiao+posicao_domicilio,dist="lognormal",data=amostra)
+semV32 <- survreg(Surv(tempo,censura) ~ V2007+IVS_faixa_infra+posicao_domicilio,dist="lognormal",data=amostra)
+semV42 <- survreg(Surv(tempo,censura) ~ V2007+IVS_faixa_infra+regiao,dist="lognormal",data=amostra)
+semV82 <- survreg(Surv(tempo,censura) ~ V2007+regiao+posicao_domicilio,dist="lognormal",data=amostra)
+
+
+lrtest(passo5,semV12) # 6.565e-12
+lrtest(passo5,semV32) # 0.01229
+lrtest(passo5,semV42) # 0.01124
+lrtest(passo5,semV82) # 5.901e-06
+
+
+
+## PASSO 6 -Interacoes - PULADO
+```
+
+
+
+```{r}
+### Criando modelos com covariaveis (TODAS menos Ano e cor)
+
+## Weibull
+
+model_weibull_cov<-survreg(Surv(tempo,censura)~V2007+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="weibull",data=dados)
+summary(model_weibull_cov) 
+
+## Log-Normal
+
+model_lognormal_cov<-survreg(Surv(tempo,censura)~V2007+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="lognormal",data=dados)
+summary(model_lognormal_cov) 
+
+## Log-Logística
+
+model_loglogist_cov<-survreg(Surv(tempo,censura)~V2007+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist="loglogistic",data=dados)
+summary(model_loglogist_cov) 
+
+```
+
+
+```{r}
+### Residuos de Cox-Snell com covariaveis - Weibull
+sWei  <- flexsurvreg(s~V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist='weibull',data=dados)
+cs_weibull <- coxsnell_flexsurvreg(sWei)
+surv <- survival::survfit(Surv(cs_weibull$est, dados$censura) ~ 1)
+{plot(surv, fun="cumhaz", main = "Resíduos de Cox-Snell - Modelo Weibull")
+abline(0, 1, col="red")}
+
+
+## Versao no ggplot
+
+cox_df <- data.frame(tempo=surv$time,cumhaz=surv$cumhaz)
+
+# calculando o IC para H(t)
+z <- qnorm(0.975)
+upper <- surv$cumhaz+(z*surv$std.chaz)
+lower <- surv$cumhaz-(z*surv$std.chaz)
+
+cox_df$upper <- upper
+cox_df$lower <- lower
+
+plotw <- ggplot(cox_df,aes(x=tempo,y=cumhaz)) +
+  geom_stepribbon(aes(ymin = lower, ymax = upper), fill = "grey70",alpha = 0.5) +
+    geom_step(aes(y = cumhaz)) +
+labs(x="",y="",title="Modelo Weibull")+
+  geom_abline(intercept = 0, slope = 1,col='red') +
+  #scale_x_continuous(breaks=seq(0,500,by=50))+
+  #scale_fill_manual(values=colors_fill) +
+  #scale_color_manual(values=colors_fill) +
+  #xlim(c(0,9)) +
+  #ylim(c(0,6)) +
+tema 
+
+```
+
+```{r}
+### Residuos de Cox-Snell - Log-Normal
+slognormal  <- flexsurvreg(s ~V2007+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist='lognormal',data=dados)
+cs_lognormal <- coxsnell_flexsurvreg(slognormal)
+surv <- survival::survfit(Surv(cs_lognormal$est, dados$censura) ~ 1)
+plot(surv, fun="cumhaz", main = "Resíduos de Cox-Snell - Modelo Log-Normal")
+abline(0, 1, col="red")
+
+
+## Versao no ggplot
+
+cox_df <- data.frame(tempo=surv$time,cumhaz=surv$cumhaz)
+
+# calculando o IC para H(t)
+z <- qnorm(0.975)
+upper <- surv$cumhaz+(z*surv$std.chaz)
+lower <- surv$cumhaz-(z*surv$std.chaz)
+
+cox_df$upper <- upper
+cox_df$lower <- lower
+
+plotlogn <- ggplot(cox_df,aes(x=tempo,y=cumhaz)) +
+  geom_stepribbon(aes(ymin = lower, ymax = upper), fill = "grey70",alpha = 0.5) +
+    geom_step(aes(y = cumhaz)) +
+labs(x="",y="",title="Modelo Log-Normal")+
+  geom_abline(intercept = 0, slope = 1,col='red') +
+  #scale_x_continuous(breaks=seq(0,500,by=50))+
+  #scale_fill_manual(values=colors_fill) +
+  #scale_color_manual(values=colors_fill) +
+  #xlim(c(0,9)) +
+  #ylim(c(0,6)) +
+tema 
+```
+
+```{r}
+### Residuos de Cox-Snell - Log-Logistica
+sloglog  <- flexsurvreg(s ~ V2007+regiao+posicao_domicilio+VD3006+faixa_etaria+IVS_faixa_infra,dist='llogis',data=dados)
+cs_loglog <- coxsnell_flexsurvreg(sloglog)
+surv <- survival::survfit(Surv(cs_loglog$est, dados$censura) ~ 1)
+plot(surv, fun="cumhaz", main = "Resíduos de Cox-Snell - Modelo Log-Logística")
+abline(0, 1, col="red")
+
+
+## Versao no ggplot
+
+cox_df <- data.frame(tempo=surv$time,cumhaz=surv$cumhaz)
+
+# calculando o IC para H(t)
+z <- qnorm(0.975)
+upper <- surv$cumhaz+(z*surv$std.chaz)
+lower <- surv$cumhaz-(z*surv$std.chaz)
+
+cox_df$upper <- upper
+cox_df$lower <- lower
+
+plotloglog <- ggplot(cox_df,aes(x=tempo,y=cumhaz)) +
+  geom_stepribbon(aes(ymin = lower, ymax = upper), fill = "grey70",alpha = 0.5) +
+    geom_step(aes(y = cumhaz)) +
+labs(x="",y="",title="Modelo Log-Logística")+
+  geom_abline(intercept = 0, slope = 1,col='red') +
+  #scale_x_continuous(breaks=seq(0,500,by=50))+
+  #scale_fill_manual(values=colors_fill) +
+  #scale_color_manual(values=colors_fill) +
+  #xlim(c(0,9)) +
+  #ylim(c(0,6)) +
+tema 
+```
+
+```{r}
+### Painel com os 3 graficos de residuos cox-snell COM covariaveis
+
+cox_grid <- cowplot::plot_grid(plotw,plotlogn,plotloglog)
+
+title <- ggdraw() + draw_label("Resíduos de Cox-Snell com covariáveis", fontface="bold",
+                               color = "gray10")
+
+plot_grid(title, cox_grid, ncol=1, rel_heights=c(0.1, 1))
+ggsave("res_cox_snell_com_cov.png",width = 186, height = 133, units = "mm") 
+```
+
+```{r}
+summary(model_lognormal_cov)
+
+model_lognormal_cov2 <-survreg(Surv(tempo,censura)~V2007+cor+regiao+posicao_domicilio+VD3006+faixa_etaria,dist="lognormal",data=dados)
+summary(model_lognormal_cov2) 
+
+```
+
